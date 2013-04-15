@@ -1,0 +1,556 @@
+#COMPILE
+cd /home/er2/braud/DNS2D_CONTROL
+xemacs dns1_2d.f&
+xemacs param.dat&
+make
+./dns2d 
+cp dns2d /workdir/er2/braud/2D/FIRSTRUN/
+#COMPILE LENOVO
+in par.f: parameter (nin=75,nout=276)
+in Makefile: LDFLAGS  = -O3 -march=native -ffast-math -funroll-loops -Wno-unused /opt/acml5.3.0/gfortran64/lib/libacml.a
+
+
+#RUN
+cd /workdir/er2/braud/2D/FIRSTRUN/
+cp ../RUN02/fort.903 fort.801
+cp ../RUN02/sub.cmd .
+qsub sub.cmd
+qstat -a
+tail -f out.dat 
+
+#VISUS: (fichiers sortie: fort.92,fort.200, Ps101000, Wz101000) 
+cd /workdir/er2/braud/2D/FIRSTRUN
+ln -s /home/er2/braud/DNS2D_CONTROL/2d_matplotlib.py .
+./2d_matplotlib.py Ps101000
+./2d_matplotlib.py Wz101000
+L112 : Vmin, Vmax
+L48  : nx1, nx2, ny1, ny2
+#VIDEO
+mkmovie.sh : use 2d-plotimage.py to generate png (todo: mffpeg)
+for f in `ls Wz100???.png`;do convert $f `basename $f .png`.jpg ;done
+mencoder -vf scale -zoom -xy 640 -ovc x264 -x264encopts crf=18 "mf://*.jpg" -fps 1 -o mov.avi
+
+#VARIABLES
+nvit: sommet
+nitef: 100 000 = nombre iteration
+ipas 1 	       = frequence d'enregistrement fichier demarrage
+
+#FICHIERS
+fort.56		= grille 
+fort.60		= fichier info et maillage y
+fort.9?		= fichier  evolution temporelle de la vitesse u pour differentes positions (variable en y: colonnes dans fichiers, variation en x (nx/6): fichier fort.91, 92, 93, ...96)  
+bump.dat	= geometrie bosse 
+
+RUNS:
+
+CRUN01 :
+!     blowing-suction periodique a la paroi:
+      xl=2.d0
+      do i=1,10
+         ampl=-0.19d0
+         edx=dxetha(nvit-5+i)
+         som=1.d0/sqrt(1.d0+edx*edx)
+         xfc(i)=dcos(2.d0*pi*float(i)*pasx/xl)
+         u(nvit-10+i,1,iact)=ampl*xfc(i)/sqrt(2.d0)
+         v(nvit-10+i,1,iact)=ampl*xfc(i)/sqrt(2.d0)
+      enddo
+
+         write(210,*) xite,u(nvit-10+1,1,iact),v(nvit-10+1,1,iact)
+
+CRUN02 : 
+!     blowing-suction periodique en temps:
+      xl=2.d0
+      do i=1,10
+         ampl=-0.19d0
+         edx=dxetha(nvit-5+i)
+         som=1.d0/sqrt(1.d0+edx*edx)
+         xfc(i)=dcos(2.d0*pi*float(ite)*past)
+! gnuplot function (x=1,10000): f(x)=-0.19*cos(2*pi*x)
+         u(nvit-10+i,1,iact)=ampl*xfc(i)
+         v(nvit-10+i,1,iact)=ampl*xfc(i)
+      enddo
+
+CRUN03 : 
+!      Step function
+      icontb=2000
+      if (ite>icontb) then
+         ampl=0.19d0
+         do i=1,10
+            xfc(i)=1
+            u(nvit-10+i,1,iact)=ampl*xfc(i) !*xfc(i)/sqrt(2.d0)
+            v(nvit-10+i,1,iact)=ampl*xfc(i) !*xfc(i)/sqrt(2.d0)
+         enddo
+      end if
+
+CRUN04 : 
+! Step function (less time step: nitef=2000 and save Wz and P mor often: ipas2=200)
+      icontb=200
+      if (ite>icontb) then
+         ampl=0.19d0
+         do i=1,10
+            xfc(i)=1
+            u(nvit-10+i,1,iact)=ampl*xfc(i) !*xfc(i)/sqrt(2.d0)
+            v(nvit-10+i,1,iact)=ampl*xfc(i) !*xfc(i)/sqrt(2.d0)
+         enddo
+      end if
+
+CRUN05 : 
+!      idem CRUN04 with more time steps: nitef=10000 and less saving: ipas2=500
+
+CRUN06 : 
+!      idem CRUN05 with calcul and saving Umean and Vmean (binary stockage) 
+
+CRUN07 : 
+!     idem CRUN06 with lower amplitude:  ampl=0.05d0
+!     Step function
+      icontb=200
+      if (ite>icontb) then
+         ampl=0.05d0
+         do i=1,10
+            xfc(i)=1
+            u(nvit-10+i,1,iact)=ampl*xfc(i) !*xfc(i)/sqrt(2.d0)
+            v(nvit-10+i,1,iact)=ampl*xfc(i) !*xfc(i)/sqrt(2.d0)
+         enddo
+      end if
+      write(210,*) xite,u(nvit-10+1,1,iact),v(nvit-10+1,1,iact)
+
+CRUN08 : 
+!      idem CRUN06 with more time steps: nitef=50000
+
+CRUN09 :
+! Without control: REFERENCE
+! ajout stockage ascii pour Umean and Vmean pour gnuplot (L1250)
+
+CRUN10 :
+! nitef=10000, ipas2=500
+! changement position jet: 
+! Step function
+      icontb=200
+      if (ite>icontb) then
+         ampl=0.1d0
+         do i=1,10
+            xfc(i)=1
+            u(nvit+10-i,1,iact)=ampl*xfc(i) !*xfc(i)/sqrt(2.d0)
+            v(nvit+10-i,1,iact)=ampl*xfc(i) !*xfc(i)/sqrt(2.d0)
+         enddo
+      end if
+      write(210,*) xite,u(nvit+10-1,1,iact),v(nvit+10-1,1,iact)
+
+
+CRUN11 : previous RUN = error in mean calculation
+!modification files: 92,93,94, ...
+!conf control idem CRUN10 but with correction error
+!
+
+CRUN12 :
+! idem CRUN11 +:
+!
+!-> evolution temporelle de la vitesse u proche actionneur
+!
+      nu1=nvit+10 !nvit=125
+      nu2=nvit+16
+      nu3=nvit+21
+      nu4=nvit+26
+      nu5=nvit+36
+      nu6=nvit+46
+      nu7=nvit+56
+      xite=float(ite)*past
+      write(301,108)xite,u(nu1,1,iact),u(nu1,5,iact),
+     &u(nu1,17,iact),u(nu1,45,iact),u(nu1,60,iact)
+      write(302,108)xite,u(nu2,1,iact),u(nu2,5,iact),
+     &u(nu2,17,iact),u(nu2,45,iact),u(nu2,60,iact)
+      write(303,108)xite,u(nu3,1,iact),u(nu3,5,iact),
+     &u(nu3,17,iact),u(nu3,45,iact),u(nu3,60,iact)
+      write(304,108)xite,u(nu4,1,iact),u(nu4,5,iact),
+     &u(nu4,17,iact),u(nu4,45,iact),u(nu4,60,iact)
+      write(305,108)xite,u(nu5,1,iact),u(nu5,5,iact),
+     &u(nu5,17,iact),u(nu5,45,iact),u(nu5,60,iact)
+      write(306,108)xite,u(nu6,1,iact),u(nu6,5,iact),
+     &u(nu6,17,iact),u(nu6,45,iact),u(nu6,60,iact)
+      write(307,108)xite,u(nu7,1,iact),u(nu7,5,iact),
+     &u(nu7,17,iact),u(nu7,45,iact),u(nu7,60,iact)
+
+
+CRUN13	:
+! idem control geometrie as CRUN12
+! sensors are differents:
+
+!-> evolution temporelle de la vitesse u proche actionneur
+!
+      nu1=nvit+10 !nvit=125
+      nu2=nvit+16
+      nu3=nvit+21
+      nu4=nvit+26
+      nu5=nvit+36
+      nu6=nvit+46
+      nu7=nvit+56
+      xite=float(ite)*past
+      write(301,108)xite,u(nu1,2,iact),v(nu1,2,iact),
+     &dyu(nu1,2,iact),dxv(nu1,2,iact)
+      write(302,108)xite,u(nu2,2,iact),v(nu2,2,iact),
+     &dyu(nu2,2,iact),dxv(nu2,2,iact)
+      write(303,108)xite,u(nu3,2,iact),v(nu3,2,iact),
+     &dyu(nu3,2,iact),dxv(nu3,2,iact)
+      write(304,108)xite,u(nu4,1,iact),u(nu4,2,iact),
+     &dyu(nu4,2,iact),dxv(nu4,2,iact)
+      write(305,108)xite,u(nu5,1,iact),u(nu5,2,iact),
+     &dyu(nu5,2,iact),dxv(nu5,2,iact)
+      write(306,108)xite,u(nu6,1,iact),u(nu6,2,iact),
+     &dyu(nu6,2,iact),dxv(nu6,2,iact)
+      write(307,108)xite,u(nu7,1,iact),u(nu7,2,iact),
+     &dyu(nu7,2,iact),dxv(nu7,2,iact)
+
+CRUN14 :
+!idem control geometrie as CRUN13
+! 
+! =====================================================================
+!     =            STOCKAGE MEAN                =
+! =====================================================================
+! 
+!
+           do i=1,nx
+              do j=1,ny
+                 umean(i,j)=umean(i,j)/float(nitef)
+                 vmean(i,j)=umean(i,j)/float(nitef)                  !!!!!!ERROR !!!!!!!!!!
+c         write(60,'(i3,e17.8)') j,y(j)
+c                 write(400,'(i3,i3,2es17.8)') i,j,umean(i,j),vmean(i,j)
+              enddo
+c              write(400,*)
+           enddo
+           
+           call stockage(umean,xmesh,ymesh,nx,ny,1,past,'Um')
+           call stockage(vmean,xmesh,ymesh,nx,ny,1,past,'Vm')
+!
+
+!-> SENSORS
+c      xite=float(ite)*past
+c      write(200,*) xite,dyu(int(30.D0/pasx),1,iact)
+
+!
+!-> 
+!
+!      nu?=nvit+5 !(x,y)=(25.8,1.957)
+      nu1=nvit+10 !(x,y)=(26.8,1.83) (nvit=125)
+      nu2=nvit+16 !(x,y)=(28,1.60)
+      nu3=nvit+21 !(x,y)=(29,1.356)
+      nu4=nvit+26 !(x,y)=(30,1.089)
+      nu5=nvit+31 !(x,y)=(31,0.82)
+      nu6=nvit+36 !(x,y)=(32,0.57)
+      nu7=nvit+41 !(x,y)=(32.8,0.396)
+      nu8=nvit+46 !(x,y)=(34,0.18)
+      nu9=nvit+56 !(x,y)=(36,0.01)
+      nu10=198 !(x,y)=(39.4,0.00088)
+      nu11=241 !(x,y)=(48,0.000357)
+      xite=float(ite)*past
+      write(301,108)xite,u(nu1,2,iact),v(nu1,2,iact),
+     &dyu(nu1,2,iact),dxv(nu1,2,iact)
+      write(302,108)xite,u(nu2,2,iact),v(nu2,2,iact),
+     &dyu(nu2,2,iact),dxv(nu2,2,iact)
+      write(303,108)xite,u(nu3,2,iact),v(nu3,2,iact),
+     &dyu(nu3,2,iact),dxv(nu3,2,iact)
+      write(304,108)xite,u(nu4,2,iact),v(nu4,2,iact),
+     &dyu(nu4,2,iact),dxv(nu4,2,iact)
+      write(305,108)xite,u(nu5,2,iact),v(nu5,2,iact),
+     &dyu(nu5,2,iact),dxv(nu5,2,iact)
+      write(306,108)xite,u(nu6,2,iact),v(nu6,2,iact),
+     &dyu(nu6,2,iact),dxv(nu6,2,iact)
+      write(307,108)xite,u(nu7,2,iact),v(nu7,2,iact),
+     &dyu(nu7,2,iact),dxv(nu7,2,iact)
+      write(308,108)xite,u(nu8,2,iact),v(nu8,2,iact),
+     &dyu(nu8,2,iact),dxv(nu8,2,iact)
+      write(309,108)xite,u(nu9,2,iact),v(nu9,2,iact),
+     &dyu(nu9,2,iact),dxv(nu9,2,iact)
+      write(310,108)xite,u(nu10,2,iact),v(nu10,2,iact),
+     &dyu(nu10,2,iact),dxv(nu10,2,iact)
+      write(311,108)xite,u(nu11,2,iact),v(nu11,2,iact),
+     &dyu(nu11,2,iact),dxv(nu11,2,iact)
+
+
+CRUN15 : 
+!idem control geometrie as CRUN14
+!================================================
+!     CONVERGENCE MEAN ET VALEUR ABSOLUE DE U ET V
+!================================================
+           do i=1,nx
+              do j=1,ny
+                 tmpum(i,j)=tmpum(i,j)+u(i,j,ianc)
+                 tmpvm(i,j)=tmpvm(i,j)+v(i,j,ianc)
+                 tmpua(i,j)=tmpua(i,j)+abs(u(i,j,ianc))
+                 tmpva(i,j)=tmpva(i,j)+abs(v(i,j,ianc))
+                 tmptu(i,j)=tmptu(i,j)+abs(dyu(i,j,ianc))
+                 tmptv(i,j)=tmptv(i,j)+abs(dxv(i,j,ianc))
+                 tmpp(i,j)=tmpp(i,j)+p(i,j,ianc)
+
+              enddo
+           enddo
+           
+           if (ite-ipas2*(ite/ipas2).eq.0.and.ite>0) then
+              do i=1,nx
+                 do j=1,ny
+
+                    umean(i,j)=tmpum(i,j)/float(ite)
+                    vmean(i,j)=tmpvm(i,j)/float(ite)
+                    uabs(i,j)=tmpua(i,j)/float(ite)
+                    vabs(i,j)=tmpva(i,j)/float(ite)
+                    tauu(i,j)=tmptu(i,j)/float(ite)
+                    tauv(i,j)=tmptv(i,j)/float(ite)
+                    pmean(i,j)=tmpp(i,j)/float(ite)
+         write(400,'(es17.8,i3,2es17.8)') i*pasx,j,umean(i,j),uabs(i,j)
+c     write(60,'(i3,e17.8)') j,y(j)
+c                    write(400,'(i4,i3,4es17.8)') i,j,umean(i,j),vmean(i,
+c     &                   j),uabs(i,j),vabs(i,j)
+                 enddo
+                 write(400,*)
+              enddo
+              
+              call stockage(umean,xmesh,ymesh,nx,ny,ite,past,'Um') !range (-0.2:1.2)
+              call stockage(vmean,xmesh,ymesh,nx,ny,ite,past,'Vm') !range (-0.06:0.01)
+              call stockage(tauu,xmesh,ymesh,nx,ny,ite,past,'tu') !range (0:0.7)
+              call stockage(tauv,xmesh,ymesh,nx,ny,ite,past,'tv')  !range (0:0.004)
+              call stockage(pmean,xmesh,ymesh,nx,ny,ite,past,'Pm')!range (-0.06:0.003)
+              call stockage(uabs,xmesh,ymesh,nx,ny,ite,past,'Ua') !range (0:1.2)
+              call stockage(vabs,xmesh,ymesh,nx,ny,ite,past,'Va') !range (0:0.01)
+!================================================
+!     Calcul lf
+!================================================
+!!!!!! USING changement signe of Umean
+           do i=nvit-20,nx-10
+              if (umean(i,2).le.0.d0) then
+                 nx1=i                 
+                 exit
+              endif              
+           enddo           
+           do i=nx1+1,nx-10             
+              if (umean(i,2).ge.0.d0) then
+                 nx2=i                 
+                 exit                 
+              endif            
+           enddo
+           xlf=(nx2-nx1)*pasx
+        write(100,'(2es17.8,i4,i4)') xite,xlf,nx1,nx2
+
+!!!!!! USING tauu (TODO: min research)
+        endif
+
+
+CRUN16 : idem CRUN15 + another criteria for lf (DOESN'T WORK: todo global research of minimum)
+!================================================
+!     Calcul lf
+!================================================
+!!!!!! USING tauu (research of first and second minimum)
+        do i=nvit+12,nx-10
+           if (tauu(i-1,2).ge.tauu(i,2).and.tauu(i+1,2).ge.tauu(i,2)) 
+     &          then
+              nxmin1=i
+              exit
+           endif
+        enddo             
+        do i=nxmin1+1,nx-10
+           if (tauu(i-1,2).ge.tauu(i,2).and.tauu(i+1,2).ge.tauu(i,2)) 
+     &          then
+              nxmin2=i                                  
+              exit                 
+           endif            
+        enddo
+        xlf=(nxmin2-(nvit+11))*pasx
+!     write(110,'(2es17.8)') float(i),tauu(i,2)
+
+        write(110,'(2es17.8,i4,i4)') xite,xlf,nxmin1,nxmin2
+      endif
+
+CRUN17 :
+modify CONTROL: upward AND downward step
+      icontb=200
+      icontc=1500
+c      write(*,*) ite
+      if ((ite.ge.icontb).and.(ite.le.icontc)) then
+c      write(*,*) 'ITE=',ite
+         ampl=0.1d0
+         do i=1,10
+            xfc(i)=1
+            u(nvit+10-i,1,iact)=ampl*xfc(i) !*xfc(i)/sqrt(2.d0)
+            v(nvit+10-i,1,iact)=ampl*xfc(i) !*xfc(i)/sqrt(2.d0)
+         enddo
+         else
+         do i=1,10
+            u(nvit+10-i,1,iact)=0.d0
+            v(nvit+10-i,1,iact)=0.d0
+         enddo
+      end if
+      write(210,*) xite,u(nvit+10-1,1,iact),v(nvit+10-1,1,iact)
+
+
+
+CRUN18 : reduction taille control 
+         do i=1,5
+            xfc(i)=1
+            u(nvit+5+i,1,iact)=ampl*xfc(i) 
+            v(nvit+5+i,1,iact)=ampl*xfc(i) 
+         enddo
+         else
+         do i=1,5
+            u(nvit+5+i,1,iact)=0.d0
+            v(nvit+5+i,1,iact)=0.d0
+         enddo
+
+CRUN19 : pas de stockage netcdf
+itef= 100000
+fente= 5 pasx
+marche montante : ampl=0.1 u
+ipas2=500=ipasPIV=ipasLF
+
+CRUN20 : pas de stockage netcdf
+itef= 100000
+fente= 5 pasx
+burst : ampl=0.1 u entre t=2 et t=15
+ipas2=500=ipasPIV=ipasLF
+
+CRUN21 : stockage netcdf
+itef= 100000
+fente= 5 pasx
+marche montante : ampl=0.1 u
+ipas2=500=ipasPIV=ipasLF
+
+CRUN22 : stockage netcdf
+itef= 100000
+fente= 5 pasx
+burst : ampl=0.1 u entre t=2 et t=15
+ipas2=500=ipasPIV=ipasLF
+
+CRUN23 : idem 19 with ampl=0.05        OK
+itef= 100000
+fente= 5 pasx
+marche montante : ampl=0.05 u
+ipas2=500=ipasPIV=ipasLF
+
+CRUN24 : idem 19 with ampl=0.2         OK
+itef= 100000
+fente= 5 pasx
+marche montante : ampl=0.2 u
+ipas2=500=ipasPIV=ipasLF
+
+CRUN25 : idem 19 with ampl=0.4		OK
+itef= 100000
+fente= 5 pasx
+marche montante : ampl=0.4 u
+ipas2=500=ipasPIV=ipasLF
+
+CRUN26 : idem 19 with ampl=0.6		OK
+itef= 100000
+fente= 5 pasx
+marche montante : ampl=0.6 u
+ipas2=500=ipasPIV=ipasLF
+
+CRUN27 : idem 20 with ampl=0.05		OK
+itef= 100000
+fente= 5 pasx
+burst : ampl=0.05 u entre t=2 et t=15
+ipas2=500=ipasPIV=ipasLF
+
+CRUN28 : idem 20 with ampl=0.2		OK
+itef= 100000
+fente= 5 pasx
+burst : ampl=0.2 u entre t=2 et t=15
+ipas2=500=ipasPIV=ipasLF
+
+CRUN29 : idem 20 with ampl=0.4		OK
+itef= 100000
+fente= 5 pasx
+burst : ampl=0.4 u entre t=2 et t=15
+ipas2=500=ipasPIV=ipasLF
+
+CRUN30 : idem 20 with ampl=0.6		OK
+itef= 100000
+fente= 5 pasx
+burst : ampl=0.6 u entre t=2 et t=15
+ipas2=500=ipasPIV=ipasLF
+
+
+CRUN31 : add stockage netcdf wz and mask bosse OK
+itef= 100000
+fente= 5 pasx
+marche montante : ampl=0.1 u
+ipas2=500
+
+CRUN32 : add stockage netcdf wz and mask bosse OK
+itef= 100000
+fente= 5 pasx
+burst : ampl=0.1 u entre t=2 et t=15
+ipas2=500
+
+TODO:
+DEPOUILLER CRUN21 TO CRUN30
+FAIRE FICHIER ENTREE POUR IPAS2, NXI,NYI,XA,XB,XI,YA,YB,YI,
+
+CRUN33 : first run with controle.cpp 
+dns1_2d.f::
+	itef= 40000 ! time loop of DNS
+	ipas2=200   ! stockage wz (to remove)
+interp.f90::
+c	Cartesien grid	
+	nxi=1024    !nb points in x  
+  	nyi=100     !nb points in y  
+  	xia=0.	    !crop in x=[xia,xib]: xia
+  	xib=204.    !crop in x=[xia,xib]: xib
+  	yia=0.	    !crop in y=[yia,yib]: yia
+  	yib=20.	    !crop in y=[yia,yib]: yib
+control.cpp::
+c control + saving parameters
+c !!GlobalCompteurTime=itef-1!!
+  	   ixa=135		        !Indice of control extend [ixa,ixb]: ixa
+	   ixb=140	 	        !Indice of control extend [ixa,ixb]: ixb  	   xa=x[ixmax] (26.9208)	!Value of control extend [xa,xb]: xa
+	   xb=[ixmax+5]	(27.917889) 	!Value of control extend [xa,xb]: xb	    	    
+	   ampl=0.1	 	        !Control amplitude (step function)
+      	   TimeInitialControlUp=200	!Control step function [TimeInitialControlUp,TimeInitialControlDown]: TimeInitialControlUp
+      	   TimeInitialControlDown=1500  !Control step function [TimeInitialControlUp,TimeInitialControlDown]: TimeInitialControlDown
+
+CRUN34: modification location initial control (ixa)
+dns1_2d.f::
+	itef= 40000 ! time loop of DNS
+	ipas2=200   ! stockage wz (to remove)
+interp.f90::
+c	Cartesien grid	
+	nxi=1024    !nb points in x  
+  	nyi=100     !nb points in y  
+  	xia=0.	    !crop in x=[xia,xib]: xia
+  	xib=204.    !crop in x=[xia,xib]: xib
+  	yia=0.	    !crop in y=[yia,yib]: yia
+  	yib=20.	    !crop in y=[yia,yib]: yib
+control.cpp::
+c control + saving parameters
+c !!GlobalCompteurTime=itef-1!!
+  	   ixa=50		        !Indice of control extend [ixa,ixb]: ixa (before bump) 
+	   ixb=ixa+5		 	!Indice of control extend [ixa,ixb]: ixb   
+ 	   xa=x[ixa]			!Value of control extend [xa,xb]: xa
+	   xb=[ixb]			!Value of control extend [xa,xb]: xb	    	    
+	   ampl=0.1	 	        !Control amplitude (step function)
+      	   TimeInitialControlUp=200	!Control step function [TimeInitialControlUp,TimeInitialControlDown]: TimeInitialControlUp
+      	   TimeInitialControlDown=1500  !Control step function [TimeInitialControlUp,TimeInitialControlDown]: TimeInitialControlDown
+	  	  
+ 
+
+possible cases:
+ampl=0.1d0	
+cas1:
+u(nvit+10-i,1,iact)=ampl*xfc(i) 
+v=0
+
+cas2:
+u(nvit+10-i,1,iact)=-ampl*xfc(i) 
+v=0
+
+cas3:
+u=0
+v(nvit+10-i,1,iact)=ampl*xfc(i) 
+
+cas4:
+u=0
+v(nvit+10-i,1,iact)=-ampl*xfc(i) 
+
+Trouver frottement plus adapte:
+plus proche actionneur ?
+
+
+
+
+Question: Visu Um, Vm ... ?
